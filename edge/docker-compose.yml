@@ -1,0 +1,30 @@
+services:
+  zt-edge-gateway:
+    build:
+      context: ..
+      dockerfile: Dockerfile.zt-gateway
+    container_name: zt-edge-gateway
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    sysctls:
+      net.ipv4.ip_forward: "1"
+    env_file:
+      - .env
+    environment:
+      ZT_NETWORK_ID: ${ZT_NETWORK_ID}
+      ZT_SUBNET: ${ZT_SUBNET:-10.147.17.0/24}
+      CORE_NODE_ZT_IP: ${CORE_NODE_ZT_IP:-10.147.17.3}
+      FORWARD_PORTS: ${FORWARD_PORTS:-32400/tcp,2456/udp}
+      EXT_IFACE: ${EXT_IFACE:-}
+      RULE_REAPPLY_INTERVAL: ${RULE_REAPPLY_INTERVAL:-30}
+      CORE_NODE_WAIT_TIMEOUT: ${CORE_NODE_WAIT_TIMEOUT:-300}
+    ports:
+      - "32400:32400/tcp"
+      - "2456:2456/udp"
+    volumes:
+      - ./entrypoint.sh:/entrypoint.sh:ro
+      - ./zerotier-one:/var/lib/zerotier-one
+    entrypoint: ["/bin/bash", "/entrypoint.sh"]
+    restart: unless-stopped

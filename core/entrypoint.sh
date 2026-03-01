@@ -1,0 +1,158 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ZT_NETWORK_ID="${ZT_NETWORK_ID:?ZT_NETWORK_ID is required}"
+CORE_APP_IP="${CORE_APP_IP:-172.18.0.10}"
+FORWARD_PORTS="${FORWARD_PORTS:-32400/tcp,2456/udp}"
+RULE_REAPPLY_INTERVAL="${RULE_REAPPLY_INTERVAL:-30}"
+CORE_ZT_READY_TIMEOUT="${CORE_ZT_READY_TIMEOUT:-300}"
+
+log() {
+  printf '[core-zt-gw] %s\n' "$*"
+}
+
+ensure_rule() {
+  local table="$1"
+  shift
+  if ! iptables -t "$table" -C "$@" 2>/dev/null; then
+    iptables -t "$table" -A "$@"
+  fi
+}
+
+parse_port_spec() {
+  local spec="$1"
+  local proto pair public_port target_port
+
+  proto="${spec##*/}"
+  pair="${spec%/*}"
+
+  if [[ "$pair" == *":"* ]]; then
+    public_port="${pair%%:*}"
+    target_port="${pair##*:}"
+  else
+    public_port="$pair"
+    target_port="$pair"
+  fi
+
+  printf '%s %s %s\n' "$public_port" "$target_port" "$proto"
+}
+
+find_app_iface() {
+  ip -4 route get "$CORE_APP_IP" 2>/dev/null | awk '{for (i = 1; i <= NF; i++) if ($i == "dev") { print $(i+1); exit }}'
+}
+
+zt_network_joined() {
+  zerotier-cli listnetworks | awk -v nwid="$ZT_NETWORK_ID" '$3==nwid {found=1} END {exit(found?0:1)}'
+}
+
+zt_network_ok() {
+  zerotier-cli listnetworks | awk -v nwid="$ZT_NETWORK_ID" '$3==nwid && $6=="OK" {ok=1} END {exit(ok?0:1)}'
+}
+
+get_zt_iface() {
+  zerotier-cli listnetworks | awk -v nwid="$ZT_NETWORK_ID" '$3==nwid && $8 ~ /^zt/ {print $8; exit}'
+}
+
+start_zerotier() {
+  mkdir -p /var/lib/zerotier-one
+  chmod 700 /var/lib/zerotier-one
+
+  zerotier-one -d
+
+  for _ in $(seq 1 30); do
+    if zerotier-cli info >/dev/null 2>&1; then
+      break
+    fi
+    sleep 1
+  done
+
+  if ! zerotier-cli info >/dev/null 2>&1; then
+    log "zerotier-cli not ready"
+    exit 1
+  fi
+
+  if ! zt_network_joined; then
+    log "Joining ZeroTier network ${ZT_NETWORK_ID}"
+    zerotier-cli join "$ZT_NETWORK_ID"
+  fi
+}
+
+wait_for_zt_interface() {
+  local timeout="${1:-300}"
+  local start iface
+  start="$(date +%s)"
+
+  while true; do
+    iface="$(get_zt_iface || true)"
+    if zt_network_ok && [[ -n "$iface" ]] && ip -4 addr show dev "$iface" | grep -q 'inet '; then
+      log "ZeroTier interface ready: ${iface}"
+      return 0
+    fi
+
+    if (( $(date +%s) - start >= timeout )); then
+      log "Timed out waiting for ZeroTier authorization/interface (network ${ZT_NETWORK_ID})"
+      zerotier-cli listnetworks || true
+      exit 1
+    fi
+
+    sleep 2
+  done
+}
+
+apply_rules() {
+  local app_iface
+  app_iface="${CORE_APP_IFACE:-$(find_app_iface)}"
+
+  if [[ -z "$app_iface" ]]; then
+    log "Could not detect interface to CORE_APP_IP ${CORE_APP_IP}"
+    exit 1
+  fi
+
+  iptables -P FORWARD DROP
+
+  ensure_rule nat POSTROUTING -o zt+ -s "$CORE_APP_IP/32" -j MASQUERADE
+
+  ensure_rule filter FORWARD -i zt+ -o "$app_iface" -d "$CORE_APP_IP" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+  ensure_rule filter FORWARD -i "$app_iface" -o zt+ -s "$CORE_APP_IP" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+
+  IFS=',' read -r -a entries <<< "$FORWARD_PORTS"
+  for entry in "${entries[@]}"; do
+    entry="${entry//[[:space:]]/}"
+    [[ -z "$entry" ]] && continue
+
+    read -r public_port target_port proto < <(parse_port_spec "$entry")
+    if [[ "$proto" != "tcp" && "$proto" != "udp" ]]; then
+      log "Skipping invalid protocol in entry: $entry"
+      continue
+    fi
+
+    ensure_rule nat PREROUTING -i zt+ -p "$proto" --dport "$public_port" -j DNAT --to-destination "${CORE_APP_IP}:${target_port}"
+    ensure_rule filter FORWARD -i zt+ -o "$app_iface" -p "$proto" -d "$CORE_APP_IP" --dport "$target_port" -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
+    ensure_rule filter FORWARD -i "$app_iface" -o zt+ -p "$proto" -s "$CORE_APP_IP" --sport "$target_port" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+  done
+
+  log "iptables rules applied (CORE_APP_IFACE=${app_iface}, CORE_APP_IP=${CORE_APP_IP})"
+}
+
+cleanup() {
+  log "Shutting down"
+  pkill zerotier-one >/dev/null 2>&1 || true
+}
+
+trap cleanup EXIT INT TERM
+
+start_zerotier
+wait_for_zt_interface "$CORE_ZT_READY_TIMEOUT"
+apply_rules
+
+while true; do
+  if ! zt_network_ok; then
+    log "ZeroTier network not OK; rejoining ${ZT_NETWORK_ID}"
+    zerotier-cli leave "$ZT_NETWORK_ID" >/dev/null 2>&1 || true
+    zerotier-cli join "$ZT_NETWORK_ID" >/dev/null 2>&1 || true
+    wait_for_zt_interface "$CORE_ZT_READY_TIMEOUT"
+  fi
+
+  apply_rules
+  sleep "$RULE_REAPPLY_INTERVAL"
+done
