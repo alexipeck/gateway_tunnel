@@ -1,11 +1,9 @@
-# ZeroTier Tunnel Gateway (Docker-only, iptables forwarding)
+# ZeroTier Tunnel Gateway
 
-This refactor replaces WireGuard transport with ZeroTier transport while keeping the same iptables DNAT/SNAT/MASQUERADE gateway model.
+Docker-only tunnel gateway using ZeroTier for transport and iptables for forwarding. No host-level routing, firewall, or VPN config required.
 
 - Edge side: ZeroTier member + edge ingress DNAT + egress MASQUERADE
 - Core side: ZeroTier member + DNAT from ZeroTier overlay to core app + MASQUERADE back to ZeroTier
-
-No host-level routing/firewall/VPN configuration is required. All forwarding logic is in container iptables.
 
 ## Assumptions
 
@@ -18,15 +16,6 @@ No host-level routing/firewall/VPN configuration is required. All forwarding log
 - Example core node ZeroTier IP: `10.147.17.3`.
 - Example forwarded ports: `32400/tcp`, `2456/udp`.
 - Example app target: `CORE_APP_IP=172.18.0.10`.
-
-## What Changed (WireGuard -> ZeroTier)
-
-Removed files and logic:
-
-- `scripts/gen-keys.sh` removed: ZeroTier uses persistent node identity in `/var/lib/zerotier-one`; WireGuard key generation is no longer required.
-- `edge/wg0.conf` and `core/wg0.conf` removed: no interface config files are needed for ZeroTier.
-- `templates/edge.wg0.conf.tpl` and `templates/core.wg0.conf.tpl` removed: no template rendering is needed.
-- `Dockerfile.wg-gateway` replaced by `Dockerfile.zt-gateway`.
 
 ## Network Diagram
 
@@ -66,7 +55,6 @@ This avoids hardcoding the interface name while still restricting traffic to Zer
 ## ZeroTier Behavior
 
 - ZeroTier handles encrypted transport, peer liveness, and overlay maintenance.
-- No WireGuard keepalive settings are needed.
 - Entry points wait for:
   - ZeroTier daemon readiness
   - network join
@@ -125,6 +113,15 @@ cd core
 cp .env.example .env
 docker compose up -d --build
 ```
+
+### Unraid (Core)
+
+1. Copy the repo to `/mnt/user/appdata/gateway_tunnel/`.
+2. Build the image: `docker build -t zt-gateway -f Dockerfile.zt-gateway .` (from project root).
+3. Docker tab → Template Repositories → add `https://github.com/alexipeck/gateway_tunnel`.
+4. Add Container → select `zt-core-gateway` template.
+5. Set `ZT_NETWORK_ID`, `CORE_APP_IP` (your app container IP on the same bridge), `FORWARD_PORTS`. Ensure the gateway and app share a Docker network.
+6. Start, then authorize the node in ZeroTier Central and restart.
 
 Note about edge ingress on VPS:
 

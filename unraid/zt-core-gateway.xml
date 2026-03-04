@@ -1,0 +1,48 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>zt-core-gateway</Name>
+  <Registry>https://hub.docker.com/</Registry>
+  <Repository>zt-gateway</Repository>
+  <Github>https://github.com/</Github>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/</Support>
+  <Project/>
+  <Overview>ZeroTier tunnel gateway (core). Receives traffic from edge over ZeroTier and forwards to your app container.</Overview>
+  <Category>Network:</Category>
+  <WebUI/>
+  <TemplateURL/>
+  <Icon/>
+  <ExtraParams>--cap-add=NET_ADMIN --device /dev/net/tun:/dev/net/tun --sysctl net.ipv4.ip_forward=1 --entrypoint "/bin/bash"</ExtraParams>
+  <PostArgs>/entrypoint.sh</PostArgs>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <DonateImg/>
+  <MinVer/>
+  <Description>Core side of ZeroTier tunnel. Must be on same Docker network as your app. Set CORE_APP_IP to your app container IP. Build image first: docker build -t zt-gateway -f Dockerfile.zt-gateway .</Description>
+  <Networking>
+    <Mode>bridge</Mode>
+    <Publish/>
+  </Networking>
+  <Data>
+    <Volume>
+      <HostDir>/mnt/user/appdata/gateway_tunnel/core/zerotier-one</HostDir>
+      <ContainerDir>/var/lib/zerotier-one</ContainerDir>
+      <Mode>rw</Mode>
+    </Volume>
+    <Volume>
+      <HostDir>/mnt/user/appdata/gateway_tunnel/core/entrypoint.sh</HostDir>
+      <ContainerDir>/entrypoint.sh</ContainerDir>
+      <Mode>ro</Mode>
+    </Volume>
+  </Data>
+  <Environment/>
+  <Labels/>
+  <Config Name="ZT_NETWORK_ID" Target="ZT_NETWORK_ID" Default="" Mode="" Description="ZeroTier network ID" Type="Variable" Display="always" Required="true" Mask="false"></Config>
+  <Config Name="CORE_APP_IP" Target="CORE_APP_IP" Default="" Mode="" Description="IP of your app container on this Docker network" Type="Variable" Display="always" Required="true" Mask="false"></Config>
+  <Config Name="FORWARD_PORTS" Target="FORWARD_PORTS" Default="32400/tcp,2456/udp" Mode="" Description="Ports to forward (e.g. 32400/tcp,2456/udp)" Type="Variable" Display="always" Required="true" Mask="false">32400/tcp,2456/udp</Config>
+  <Config Name="zerotier-one" Target="/var/lib/zerotier-one" Default="/mnt/user/appdata/gateway_tunnel/core/zerotier-one" Mode="rw" Description="ZeroTier identity persistence" Type="Path" Display="advanced-hide" Required="true" Mask="false">/mnt/user/appdata/gateway_tunnel/core/zerotier-one</Config>
+  <Config Name="entrypoint.sh" Target="/entrypoint.sh" Default="/mnt/user/appdata/gateway_tunnel/core/entrypoint.sh" Mode="ro" Description="Entrypoint script" Type="Path" Display="advanced-hide" Required="true" Mask="false">/mnt/user/appdata/gateway_tunnel/core/entrypoint.sh</Config>
+</Container>
