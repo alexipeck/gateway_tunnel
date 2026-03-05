@@ -77,7 +77,7 @@ This avoids hardcoding the interface name while still restricting traffic to Zer
 ### Core node (`core/.env`)
 
 - `ZT_NETWORK_ID=8056c2e21c000001`
-- `CORE_APP_IP=172.18.0.10`
+- `CORE_APP_IP=` (required; comma-separated for multiple)
 - `CORE_APP_IFACE=` (optional override)
 - `FORWARD_PORTS=32400/tcp,2456/udp`
 - `APP_NETWORK_SUBNET=172.18.0.0/24`
@@ -87,13 +87,15 @@ This avoids hardcoding the interface name while still restricting traffic to Zer
 
 Port syntax on both sides:
 
-- `FORWARD_PORTS=PUBLIC_PORT[:TARGET_PORT]/PROTO,...`
+- `FORWARD_PORTS=PUBLIC_PORT[:TARGET_PORT]/PROTO[@IP],...`
 - `PROTO` is `tcp` or `udp`
+- `@IP` per-port target when using multiple CORE_APP_IPs
 
 Examples:
 
 - `32400/tcp,2456/udp`
 - `32400:32400/tcp,2456:2456/udp`
+- `32400/tcp@172.18.0.10,8080/tcp@172.18.0.11`
 
 ## Bring Up
 
@@ -116,12 +118,9 @@ docker compose up -d --build
 
 ### Unraid (Core)
 
-1. Copy the repo to `/mnt/user/appdata/gateway_tunnel/`.
-2. Build the image: `docker build -t zt-gateway -f Dockerfile.zt-gateway .` (from project root).
-3. Docker tab → Template Repositories → add `https://github.com/alexipeck/gateway_tunnel`.
-4. Add Container → select `zt-core-gateway` template.
-5. Set `ZT_NETWORK_ID`, `CORE_APP_IP` (your app container IP on the same bridge), `FORWARD_PORTS`. Ensure the gateway and app share a Docker network.
-6. Start, then authorize the node in ZeroTier Central and restart.
+Apps → search "ZeroTier Tunnel Gateway" → Install. Set `ZT_NETWORK_ID`, `CORE_APP_IP` (comma-separated for multiple), `FORWARD_PORTS`. Use `@IP` in FORWARD_PORTS for per-port targets. Authorize the node in ZeroTier Central, then restart.
+
+To publish to Community Applications: create a support thread on the [Unraid forums](https://forums.unraid.net/), set the Support URL in `unraid/zt-core-gateway.xml` to that thread, then submit via the [CA form](https://form.asana.com/?k=qtIUrf5ydiXvXzPI57BiJw&d=714739274360802). The image is published to GHCR on push to main.
 
 Note about edge ingress on VPS:
 

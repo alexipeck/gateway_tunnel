@@ -14,7 +14,7 @@ services:
       - .env
     environment:
       ZT_NETWORK_ID: ${ZT_NETWORK_ID}
-      CORE_APP_IP: ${CORE_APP_IP:-172.18.0.10}
+      CORE_APP_IP: ${CORE_APP_IP}
       FORWARD_PORTS: ${FORWARD_PORTS:-32400/tcp,2456/udp}
       CORE_APP_IFACE: ${CORE_APP_IFACE:-}
       RULE_REAPPLY_INTERVAL: ${RULE_REAPPLY_INTERVAL:-30}
