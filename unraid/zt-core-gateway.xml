@@ -2,7 +2,7 @@
 <Container version="2">
   <Name>zt-core-gateway</Name>
   <Registry>https://ghcr.io</Registry>
-  <Repository>alexipeck/gateway_tunnel:latest</Repository>
+  <Repository>ghcr.io/alexipeck/gateway_tunnel:latest</Repository>
   <Github>https://github.com/alexipeck/gateway_tunnel</Github>
   <Network>bridge</Network>
   <MyIP/>
