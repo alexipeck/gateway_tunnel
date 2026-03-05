@@ -3,6 +3,7 @@ set -euo pipefail
 
 ZT_NETWORK_ID="${ZT_NETWORK_ID:?ZT_NETWORK_ID is required}"
 CORE_APP_IP="${CORE_APP_IP:?CORE_APP_IP is required}"
+EDGE_NODE_ZT_IP="${EDGE_NODE_ZT_IP:-}"
 FORWARD_PORTS="${FORWARD_PORTS:-32400/tcp,2456/udp}"
 RULE_REAPPLY_INTERVAL="${RULE_REAPPLY_INTERVAL:-30}"
 CORE_ZT_READY_TIMEOUT="${CORE_ZT_READY_TIMEOUT:-300}"
@@ -95,6 +96,11 @@ wait_for_zt_interface() {
     iface="$(get_zt_iface || true)"
     if zt_network_ok && [[ -n "$iface" ]] && ip -4 addr show dev "$iface" | grep -q 'inet '; then
       log "ZeroTier interface ready: ${iface}"
+      if [[ -n "$EDGE_NODE_ZT_IP" ]]; then
+        ip route del default 2>/dev/null || true
+        ip route add default via "$EDGE_NODE_ZT_IP" dev "$iface"
+        log "Default route via ${EDGE_NODE_ZT_IP} (outbound through edge)"
+      fi
       return 0
     fi
 
@@ -112,12 +118,16 @@ apply_rules() {
   local app_iface first_ip port_ip
   app_iface="${CORE_APP_IFACE:-$(find_app_iface)}"
 
-  if [[ -z "$app_iface" ]]; then
-    log "Could not detect interface to CORE_APP_IP ${CORE_APP_IP}"
-    exit 1
-  fi
-
   first_ip="${CORE_APP_IP%%,*}"
+  if [[ "$first_ip" != "127.0.0.1" ]]; then
+    app_iface="${CORE_APP_IFACE:-$(find_app_iface)}"
+    if [[ -z "$app_iface" ]]; then
+      log "Could not detect interface to CORE_APP_IP ${CORE_APP_IP}"
+      exit 1
+    fi
+  else
+    app_iface=""
+  fi
 
   iptables -P FORWARD DROP
 
@@ -126,9 +136,20 @@ apply_rules() {
     ip="${ip//[[:space:]]/}"
     [[ -z "$ip" ]] && continue
     ensure_rule nat POSTROUTING -o zt+ -s "${ip}/32" -j MASQUERADE
-    ensure_rule filter FORWARD -i zt+ -o "$app_iface" -d "$ip" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
-    ensure_rule filter FORWARD -i "$app_iface" -o zt+ -s "$ip" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
   done
+  if [[ -n "$EDGE_NODE_ZT_IP" ]]; then
+    ensure_rule nat POSTROUTING -o zt+ -j MASQUERADE
+  fi
+
+  if [[ -n "$app_iface" ]]; then
+    IFS=',' read -r -a app_ips <<< "$CORE_APP_IP"
+    for ip in "${app_ips[@]}"; do
+      ip="${ip//[[:space:]]/}"
+      [[ -z "$ip" ]] && continue
+      ensure_rule filter FORWARD -i zt+ -o "$app_iface" -d "$ip" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+      ensure_rule filter FORWARD -i "$app_iface" -o zt+ -s "$ip" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+    done
+  fi
 
   IFS=',' read -r -a entries <<< "$FORWARD_PORTS"
   for entry in "${entries[@]}"; do
@@ -144,8 +165,13 @@ apply_rules() {
     port_ip="${port_ip:-$first_ip}"
 
     ensure_rule nat PREROUTING -i zt+ -p "$proto" --dport "$public_port" -j DNAT --to-destination "${port_ip}:${target_port}"
-    ensure_rule filter FORWARD -i zt+ -o "$app_iface" -p "$proto" -d "$port_ip" --dport "$target_port" -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
-    ensure_rule filter FORWARD -i "$app_iface" -o zt+ -p "$proto" -s "$port_ip" --sport "$target_port" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+    if [[ -n "$app_iface" ]]; then
+      ensure_rule filter FORWARD -i zt+ -o "$app_iface" -p "$proto" -d "$port_ip" --dport "$target_port" -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
+      ensure_rule filter FORWARD -i "$app_iface" -o zt+ -p "$proto" -s "$port_ip" --sport "$target_port" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+    else
+      ensure_rule filter INPUT -i zt+ -p "$proto" -d "$port_ip" --dport "$target_port" -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
+      ensure_rule filter OUTPUT -o zt+ -p "$proto" -s "$port_ip" --sport "$target_port" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+    fi
   done
 
   log "iptables rules applied (CORE_APP_IFACE=${app_iface}, CORE_APP_IP=${CORE_APP_IP})"

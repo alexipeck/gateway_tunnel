@@ -77,7 +77,8 @@ This avoids hardcoding the interface name while still restricting traffic to Zer
 ### Core node (`core/.env`)
 
 - `ZT_NETWORK_ID=8056c2e21c000001`
-- `CORE_APP_IP=` (required; comma-separated for multiple)
+- `CORE_APP_IP=` (required; comma-separated; use `127.0.0.1` when app shares core network)
+- `EDGE_NODE_ZT_IP=` (optional; when set, routes outbound through edge)
 - `CORE_APP_IFACE=` (optional override)
 - `FORWARD_PORTS=32400/tcp,2456/udp`
 - `APP_NETWORK_SUBNET=172.18.0.0/24`
