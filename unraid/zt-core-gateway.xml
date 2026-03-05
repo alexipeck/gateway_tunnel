@@ -40,7 +40,7 @@
   </Data>
   <Environment/>
   <Labels/>
-  <Config Name="ZT_NETWORK_ID" Target="ZT_NETWORK_ID" Default="" Mode="" Description="ZeroTier network ID" Type="Variable" Display="always" Required="true" Mask="false">YOUR_NETWORK_ID</Config>
+  <Config Name="ZT_NETWORK_ID" Target="ZT_NETWORK_ID" Default="" Mode="" Description="ZeroTier network ID" Type="Variable" Display="always" Required="true" Mask="false"></Config>
   <Config Name="CORE_APP_IP" Target="CORE_APP_IP" Default="" Mode="" Description="App IP(s), comma-separated. Use 127.0.0.1 when app shares core network" Type="Variable" Display="always" Required="true" Mask="false"></Config>
   <Config Name="EDGE_NODE_ZT_IP" Target="EDGE_NODE_ZT_IP" Default="" Mode="" Description="Edge ZeroTier IP - routes outbound through edge when set" Type="Variable" Display="always" Required="false" Mask="false"></Config>
   <Config Name="FORWARD_PORTS" Target="FORWARD_PORTS" Default="32400/tcp,2456/udp" Mode="" Description="Ports to forward (e.g. 32400/tcp,2456/udp or 32400/tcp@172.18.0.10 for per-port IP)" Type="Variable" Display="always" Required="true" Mask="false">32400/tcp,2456/udp</Config>
