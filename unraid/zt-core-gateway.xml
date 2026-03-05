@@ -40,7 +40,7 @@
   </Data>
   <Environment/>
   <Labels/>
-  <Config Name="ZT_NETWORK_ID" Target="ZT_NETWORK_ID" Default="" Mode="" Description="ZeroTier network ID" Type="Variable" Display="always" Required="true" Mask="false"></Config>
+  <Config Name="ZT_NETWORK_ID" Target="ZT_NETWORK_ID" Default="" Mode="" Description="ZeroTier network ID" Type="Variable" Display="always" Required="true" Mask="false">YOUR_NETWORK_ID</Config>
   <Config Name="CORE_APP_IP" Target="CORE_APP_IP" Default="" Mode="" Description="App container IP(s), comma-separated" Type="Variable" Display="always" Required="true" Mask="false"></Config>
   <Config Name="FORWARD_PORTS" Target="FORWARD_PORTS" Default="32400/tcp,2456/udp" Mode="" Description="Ports to forward (e.g. 32400/tcp,2456/udp or 32400/tcp@172.18.0.10 for per-port IP)" Type="Variable" Display="always" Required="true" Mask="false">32400/tcp,2456/udp</Config>
   <Config Name="zerotier-one" Target="/var/lib/zerotier-one" Default="/mnt/user/appdata/gateway_tunnel/core/zerotier-one" Mode="rw" Description="ZeroTier identity persistence" Type="Path" Display="advanced-hide" Required="true" Mask="false">/mnt/user/appdata/gateway_tunnel/core/zerotier-one</Config>
